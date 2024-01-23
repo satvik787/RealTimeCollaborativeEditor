@@ -4,7 +4,7 @@ import {
     Header, Grid, Segment, Message,Image
 } from "semantic-ui-react";
 import {useEffect, useState} from "react";
-import {APILogin} from "../api.js";
+import {httpRequest} from "../api.js";
 import Navbar from "../components/Navbar.jsx";
 import {Link, useNavigate} from "react-router-dom";
 export default function LoginPage(){
@@ -32,7 +32,7 @@ export default function LoginPage(){
     function handleLogin(){
         if(userName.length >= 5 && password.length >= 5){
             setLoading(true);
-            APILogin(userName,password)
+            httpRequest(import.meta.env.VITE_APP_API_LOGIN,"POST",{userName:userName,password:password})
                 .then((data)=>{
                     // eslint-disable-next-line no-prototype-builtins
                     if(!data.hasOwnProperty("err")){

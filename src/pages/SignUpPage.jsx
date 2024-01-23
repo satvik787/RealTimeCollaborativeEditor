@@ -1,8 +1,9 @@
 import {Form,Button, Grid, Header, Image, Segment, Message} from "semantic-ui-react";
-import {useEffect, useRef, useState} from "react";
-import {APISignUp} from "../api.js";
+import {useEffect, useState} from "react";
+import {httpRequest} from "../api.js";
 import {Link, useNavigate} from "react-router-dom";
 import Navbar from "../components/Navbar.jsx";
+import {toast} from "sonner";
 
 export default function SignUpPage(){
     const [userName,setUserName] = useState("");
@@ -23,14 +24,22 @@ export default function SignUpPage(){
     function handleSignup(){
         if(userName.length >= 5 && password.length >= 5 && email.length >= 5){
             setLoading(true);
-            APISignUp(userName,password,email)
+            httpRequest(import.meta.env.VITE_APP_API_SIGNUP,"POST",{userName:userName,password:password,email:email})
                 .then((data)=>{
-                    localStorage.setItem("userName",data.userName);
-                    localStorage.setItem("email",data.email);
+                    // eslint-disable-next-line no-prototype-builtins
+                    if(data.hasOwnProperty("err")){
+                        setInvalid(data.err);
+                    }else{
+                        if(data["acknowledged"]){
+                            navigate("/login");
+                            toast.success("Account Created");
+                            navigate("/login");
+                        }
+                    }
                     setLoading(false);
-                    navigate("/");
                 })
                 .catch((err)=>{
+                    setLoading(false);
                     console.log(err);
                 })
         }else{

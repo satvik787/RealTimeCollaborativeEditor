@@ -18,8 +18,9 @@ import {
 } from "semantic-ui-react";
 import UsersList from "./UsersList.jsx";
 import NavbarEditor from "./NavbarEditor.jsx";
-import {useLocation, useNavigate} from "react-router-dom";
+import {redirect, useLocation, useNavigate} from "react-router-dom";
 import RequestCard from "./RequestCard.jsx";
+import {Socket} from "socket.io-client";
 const SUBMISSION_TOKEN = "submission_token";
 const USER_LANG_PREF = "user_lang";
 const USER_THEME_PREF = "user_theme";
@@ -132,7 +133,7 @@ const defineTheme = (name,ind) => {
 };
 
 
-export default function Room({socket}){
+export default function Room({socket=Socket}){
     const [stdInput,setStdInput] = useState("");
     const [lang,setLang] = useState(programmingLanguages[initInd(USER_LANG_PREF)]);
     const [theme,setTheme] = useState(monacoThemes[initInd(USER_THEME_PREF)]);
@@ -140,16 +141,18 @@ export default function Room({socket}){
     const [loading,setLoading] = useState(false);
     const [output,setOutput] = useState({err:false,output:""});
     const [inputVisable,setInputVisable] = useState(false);
-    const [joinReq,setJoinReq] = useState({open:false});
+    const [joinReq,setJoinReq] = useState(new Set());
     const [outputVisable,setOutputVisable] = useState(false);
     const [users,setUsers] = useState([]);
     const {state} = useLocation();
     const navigate = useNavigate();
 
+    useEffect(() => {
+        socketHandler();
+    }, [socket]);
 
     useEffect(() => {
         if(state === null)navigate("/");
-        socketHandler();
         // eslint-disable-next-line no-prototype-builtins
         if(localStorage.hasOwnProperty(lang.name)){
             setCode(localStorage.getItem(lang.name));
@@ -158,7 +161,6 @@ export default function Room({socket}){
         }
     }, [lang]);
     
-
     useEffect(() => {
         // eslint-disable-next-line no-prototype-builtins
         if(localStorage.hasOwnProperty(USER_THEME_PREF)){
@@ -170,40 +172,73 @@ export default function Room({socket}){
             }
         }
     }, []);
+
     function socketHandler(){
+
+        socket.removeAllListeners();
         socket.emit("getSourceCode",localStorage.getItem("roomId"));
         socket.emit("getUsers",localStorage.getItem("roomId"));
         socket.on("joinReq",(data)=>{
-            setJoinReq({userName:data.userName,email:data.email,open:true});
+            setJoinReq(prevState => new Set([...prevState,data.userName]));
         });
         socket.on("sourceCodeRes",({sourceCode})=>{
             setCode(sourceCode);
-        })
+        });
         socket.on("usersRes",(users)=>{
             setUsers([...users.users]);
-        })
+        });
         socket.on("userJoined",(data)=>{
-            if(data.roomId !== localStorage.getItem("roomId"))return;
-            socket.emit("getUsers",localStorage.getItem("roomId"));
-            toast.message(`${data.userName} Joined`);
+            if(data.roomId === localStorage.getItem("roomId") && localStorage.getItem("allowed")){
+                socket.emit("getUsers",localStorage.getItem("roomId"));
+                toast.message(`${data.userName} Joined`);
+            }
+        });
+        socket.on("codeRunning",(data)=>{
+            if(data.roomId === localStorage.getItem("roomId") && localStorage.getItem("allowed")) {
+                setLoading(true);
+            }
+        });
+        socket.on("userLeft",(data)=>{
+            if(data.roomId === localStorage.getItem("roomId") && localStorage.getItem("allowed")) {
+                socket.emit("getUsers", localStorage.getItem("roomId"));
+                toast.message(`${data.userName} Left`);
+            }
+        });
+        socket.on("forcedLeave",(data)=>{
+            if(data.roomId === localStorage.getItem("roomId") && localStorage.getItem("allowed")){
+                socket.emit("leaveRoom",{userName:localStorage.getItem("userName"),roomId:localStorage.getItem("roomId")});
+                toast.message("Admin Left The room");
+                navigate("/");
+            }
+        });
+        socket.on("outputSync",(data)=>{
+            if(data.roomId === localStorage.getItem("roomId") && localStorage.getItem("allowed")){
+                setOutput(data.output);
+                setLoading(false);
+                setOutputVisable(true);
+            }
+        });
+        socket.on("inputSync",(data)=>{
+            if(data.roomId === localStorage.getItem("roomId") && localStorage.getItem("allowed")) {
+                setInputVisable(true);
+                setStdInput(data.input);
+            }
+        });
+        socket.on("languageSync",(data)=>{
+            if(data.roomId === localStorage.getItem("roomId") && localStorage.getItem("allowed")) {
+                localStorage.setItem(USER_LANG_PREF,data.val);
+                setLang(programmingLanguages[Number(data.val)]);
+            }
         });
 
-        socket.on("userLeft",(data)=>{
-            if(data.roomId !== localStorage.getItem("roomId"))return;
-            socket.emit("getUsers",localStorage.getItem("roomId"));
-            toast.message(`${data.userName} Left`);
-        })
-        socket.on("forcedLeave",(data)=>{
-            if(data.roomId !== localStorage.getItem("roomId"))return;
-            socket.emit("leaveRoom",{userName:localStorage.getItem("userName"),roomId:localStorage.getItem("roomId")});
-            toast.message("Admin Left The room");
-            navigate("/");
-        })
     }
 
-    function requestHandler(val){
-        socket.emit("AdminReqRes",{allowed:val,userName:joinReq.userName,roomId:localStorage.getItem("roomId")});
-        setJoinReq({open:false})
+    function requestHandler(val,userName){
+        setJoinReq(prevState => {
+            prevState.delete(userName);
+            return new Set([...prevState])
+        });
+        socket.emit("AdminReqRes",{allowed:val,userName:userName,roomId:localStorage.getItem("roomId")});
     }
 
 
@@ -214,6 +249,7 @@ export default function Room({socket}){
     }
 
     function onLanguageChange(val){
+        socket.emit("languageChange",{roomId:localStorage.getItem("roomId"),data:val});
         localStorage.setItem(USER_LANG_PREF,val);
         setLang(programmingLanguages[Number(val)]);
     }
@@ -247,10 +283,8 @@ export default function Room({socket}){
             tooltipDuration:0.5,
             tooltipClassName:"my_cursor"
         });
-
-        const cursor = remoteCursorManager.addCursor("_ADS", "black", "satvik");
         socket.on("update",({roomId,userName,data})=>{
-            console.log(data,roomId,userName);
+            const cursor = remoteCursorManager.addCursor(userName, "black",userName);
             if(roomId !== localStorage.getItem("roomId") || userName === localStorage.getItem("userName"))return
             // eslint-disable-next-line no-prototype-builtins
             if(!data.hasOwnProperty("cursorPos") || !data.hasOwnProperty("text"))return;
@@ -294,6 +328,7 @@ export default function Room({socket}){
         // eslint-disable-next-line no-prototype-builtins
         if(localStorage.hasOwnProperty(SUBMISSION_TOKEN) || code.trim().length === 0)return;
         setLoading(true);
+        socket.emit("codeRun",{roomId:localStorage.getItem("roomId")});
         const options = {
             method: 'POST',
             url: import.meta.env.VITE_APP_SUBMISSION_URL,
@@ -367,6 +402,7 @@ export default function Room({socket}){
                         }
                         setOutputVisable(true);
                         setOutput(obj);
+                        socket.emit("stdOutput",{output:obj,roomId:localStorage.getItem("roomId")});
                         setLoading(false);
                         localStorage.removeItem(SUBMISSION_TOKEN);
                     }
@@ -384,16 +420,20 @@ export default function Room({socket}){
         socket.emit("leaveRoom",{roomId:localStorage.getItem("roomId"),userName:localStorage.getItem("userName")})
         navigate("/");
     }
+    function handleInputChange(data){
+        setStdInput(data.target.value);
+        socket.emit("stdInput",{roomId:localStorage.getItem("roomId"),input:data.target.value});
+    }
     return (
         <>
             <NavbarEditor onLeave={handleLeave} />
             <Grid relaxed stackable style={{margin:"0 0 0 0"}}>
                 <GridColumn width={4} style={{paddingRight:"0px",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
                     <GridRow>
-                        <Segment style={{overflow:"auto",minHeight:"350px",maxHeight:"350px",marginBottom:"16px"}}>
+                        <Segment style={{overflow:"auto",minHeight:"300px",maxHeight:"300px",marginBottom:"16px"}}>
                             <TransitionGroup animation={"fade"} duration={500}>
-                                {   joinReq.open &&
-                                    <RequestCard userName={joinReq.userName} handler={requestHandler}/>
+                                {   joinReq.size > 0 &&
+                                    <RequestCard requests={joinReq} handler={requestHandler}/>
                                 }
                             </TransitionGroup>
                             <UsersList user={users} admin={false}/>
@@ -411,7 +451,7 @@ export default function Room({socket}){
                         <TransitionGroup animation={"fade down"} duration={500}>
                             {
                                 inputVisable &&
-                                <textarea style={{padding:"16px",marginBottom:"8px",width:"100%",resize:"none",minHeight:"100px"}} onChange={(data)=>setStdInput(data.target.value)} />
+                                <textarea style={{padding:"8px",marginBottom:"2px",width:"100%",resize:"none",minHeight:"100px"}} onChange={handleInputChange} value={stdInput}/>
                             }
                         </TransitionGroup>
                         <Header as={"h4"}>
@@ -425,7 +465,7 @@ export default function Room({socket}){
                         <TransitionGroup animation={"fade down"} duration={500}>
                             {
                                 (outputVisable) &&
-                                <textarea readOnly={true} style={{padding:"12px",marginBottom:"8px",resize:"none",minHeight:"100px",width:"100%",color:output.err ? "red":"black"}} value={output.output}/>
+                                <textarea readOnly={true} style={{padding:"8px",marginBottom:"8px",resize:"none",minHeight:"90px",width:"100%",color:output.err ? "red":"black"}} value={output.output}/>
                             }
                         </TransitionGroup>
                         <Button  style={{display:"position"}} color={"teal"} fluid loading={loading} onClick={executeCode} disabled={loading} >Run</Button>
@@ -433,7 +473,7 @@ export default function Room({socket}){
                 </GridColumn>
                 <GridColumn width={12}>
                     <div style={{marginBottom:"16px",display:"flex",justifyContent:"space-evenly"}}>
-                        <Dropdown onChange={(e,data)=> onLanguageChange(data.value)} defaultValue={initInd(USER_LANG_PREF)} style={{marginRight:"8px"}} fluid selection options={programmingOptions} />
+                        <Dropdown onChange={(e,data)=> onLanguageChange(data.value)} value={initInd(USER_LANG_PREF)} style={{marginRight:"8px"}} fluid selection options={programmingOptions} />
                         <Dropdown onChange={(e,data)=> onThemeChange(data.value)} fluid selection options={monacoOptions} defaultValue={initInd(USER_THEME_PREF)} />
                     </div>
                     <EditorWindow lang={lang.name} theme={theme.name}  handler={onTextChange} val={code} onMount={editorOnMount}/>

@@ -7,9 +7,10 @@ import LoginPage from "./pages/LoginPage.jsx";
 import SignUpPage from "./pages/SignUpPage.jsx";
 import {toast, Toaster} from "sonner";
 import {io} from "socket.io-client";
+import MyRooms from "./components/MyRooms.jsx";
 
 
-const socket = io("http://172.20.10.3:3155");
+const socket = io("http://192.168.29.44:3155");
 socket.on("connect",()=>{
     toast.success("Connected to server");
 })
@@ -30,6 +31,10 @@ const routes = createBrowserRouter([
     {
         path:'/signUp',
         element:<SignUpPage/>
+    },
+    {
+        path:"/myRooms",
+        element:<MyRooms/>
     }
 ])
 const App = () => {

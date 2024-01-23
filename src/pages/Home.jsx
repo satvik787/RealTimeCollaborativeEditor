@@ -2,10 +2,9 @@ import {useEffect, useState} from "react";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import {Button, Confirm, Dimmer, Loader} from "semantic-ui-react";
+import {Button, Confirm, Loader} from "semantic-ui-react";
 import Navbar from "../components/Navbar.jsx";
 import Logo from "../components/Logo.jsx";
-
 
 
 const Home = ({socket}) => {
@@ -13,56 +12,65 @@ const Home = ({socket}) => {
   const [roomId, setRoomId] = useState("");
   const [loading,setLoading] = useState(false);
   const [inRoom,setInRoom] = useState({content:"",open:false});
+
     useEffect(() => {
+        localStorage.setItem("allowed",false);
+        // localStorage.removeItem("roomId");
         setLoading(true);
         handleSocket();
-        socket.emit("checkUser",{userName:localStorage.getItem("userName")});
     }, [socket]);
-    const createNewRoom = (e) => {
-        e.preventDefault();
-        const newId = uuidv4();
-        setRoomId(newId);
-        localStorage.setItem("roomId",newId);
-        setLoading(true);
-        socket.emit("connectRoom",{roomId:newId,type:"new",userName:localStorage.getItem("userName"),email:localStorage.getItem("email")})
-    };
+
     function handleSocket(){
-        socket.on("disconnect",()=>{
-            toast.error("disconnected");
-        })
+        socket.removeAllListeners();
+        socket.emit("checkUser",{"uuid":uuidv4(),userName:localStorage.getItem("userName")});
+
         socket.on("err",(data)=>{
             toast.error(data.msg);
         })
         socket.on("checkRes",(data)=>{
             setLoading(false);
             if(data["roomData"] !== null){
-                setInRoom({content:`You are already in a Room ${data["roomData"].roomId} do you want to leave`,open:true,roomId:data["roomData"].roomId});
+                setInRoom({content:`You are already in a Room ${data["roomData"].roomId} do you want to leave`,open:true});
             }
         });
         socket.on("joinRes",(data)=>{
             setLoading(false);
             // eslint-disable-next-line no-prototype-builtins
             if(data.hasOwnProperty("newR")){
+                localStorage.setItem("allowed",true);
                 navigate(`/editor/${data.roomId}`,{
                     state:{admin:true}
+
                 });
             }else{
-                if(data.roomId === localStorage.getItem("roomId")){
-                    if(data["allowed"]){
-                        if(data.userName === localStorage.getItem("userName")){
-                            navigate(`/editor/${data.roomId}`,{
-                                state:{admin:false}
+                if(data["roomId"] === localStorage.getItem("roomId") && data["userName"] === localStorage.getItem("userName")) {
+                    if (data["allowed"]) {
+                        if (data.userName === localStorage.getItem("userName")) {
+                            localStorage.setItem("allowed",true);
+                            navigate(`/editor/${data.roomId}`, {
+                                state: {admin:false}
                             });
                         }
-                    }else{
-                        if(data.userName === localStorage.getItem("userName")){
-                            toast.error("Access Denied");
-                        }
+                    } else {
+                        toast.message("Access Denied");
                     }
                 }
             }
         });
     }
+    const createNewRoom = (e) => {
+        e.preventDefault();
+        // eslint-disable-next-line no-prototype-builtins
+        if(!localStorage.hasOwnProperty("userName")){
+            navigate("/login");
+            return;
+        }
+        const newId = uuidv4();
+        setRoomId(newId);
+        localStorage.setItem("roomId",newId);
+        setLoading(true);
+        socket.emit("connectRoom",{roomId:newId,type:"new",userName:localStorage.getItem("userName")})
+    };
   const joinRoom = () => {
       // eslint-disable-next-line no-prototype-builtins
       if(!localStorage.hasOwnProperty("userName")){
@@ -74,14 +82,15 @@ const Home = ({socket}) => {
         return;
       }
       setLoading(true);
-      socket.emit("connectRoom",{roomId:roomId,type:"req",userName:localStorage.getItem("userName"),email:localStorage.getItem("email")})
+      socket.emit("connectRoom",{roomId:roomId,type:"req",userName:localStorage.getItem("userName")})
   };
   const handleEnterKey = (e) => {
     if (e.code === "Enter") joinRoom();
   };
   function handleConfirm(){
+      console.log("CONFIRM CALLED");
       setInRoom({content:"",open:false});
-      socket.emit("leaveRoom",{roomId:inRoom.roomId,userName:localStorage.getItem("userName")});
+      socket.emit("leaveRoom",{roomId:localStorage.getItem("roomId"),userName:localStorage.getItem("userName")});
   }
   function handleCancel(){
       setInRoom({content:"",open: false});
@@ -112,7 +121,7 @@ const Home = ({socket}) => {
                       <Button disabled={loading} inverted type="submit" className="btn joinBtn" onClick={joinRoom}>
                           JOIN
                       </Button>
-                      <span className="createInfo" hidden={!localStorage.hasOwnProperty("userName") || loading}>
+                      <span className="createInfo" hidden={loading}>
                   Don&apos;t have an invite? &nbsp;
                               <a  href="" className="createNewBtn" onClick={createNewRoom}>
                     Create room

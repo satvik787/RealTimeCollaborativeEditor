@@ -7,7 +7,7 @@ export default function NavbarEditor({onLeave,roomId}){
         <Menu style={{margin:"0 0 0 0"}}>
             <Container>
                 <Menu.Item as='a' header onClick={()=>navigate("/")}>
-                    <Image size='mini' src='http://172.20.10.3:3155/logo.png' style={{ marginRight: '1.5em' }} />
+                    <Image size='mini' src='http://192.168.29.44:3155/logo.png' style={{ marginRight: '1.5em' }} />
                     Code Along
                 </Menu.Item>
                 <Menu.Item as='a' onClick={()=>navigate("/")}>Join Room</Menu.Item>
