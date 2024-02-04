@@ -14,20 +14,23 @@ export default function Navbar(){
                     <Image size='mini' src='http://192.168.29.44:3155/logo.png' style={{ marginRight: '1.5em' }} />
                     Code Along
                 </Menu.Item>
-                <Menu.Item as='a' onClick={()=>navigate("/myRooms")}>MyRooms</Menu.Item>
+                {
+                    localStorage.getItem("userName") !== null &&
+                    <Menu.Item as='a' onClick={()=>navigate("/myRooms")}>MyRooms</Menu.Item>
+                }
                 <Menu.Item as='a' position={"right"}>
                     {
                         // eslint-disable-next-line no-prototype-builtins
                         !localStorage.hasOwnProperty("userName") &&
                         <>
                             <Button primary as='a' style={{marginRight:"10px"}} onClick={()=>navigate("/login")}>Log in</Button>
-                            <Button color={"yellow"} onClick={()=>navigate("/signup")}>Sign up</Button>
+                            <Button color={"teal"} onClick={()=>navigate("/signup")}>Sign up</Button>
                         </>
                     }
                     {
                         localStorage.hasOwnProperty("userName") &&
                         <>
-                            <Button color={"yellow"} onClick={handleSignOut}><Icon name="sign-out"/>Sign Out</Button>
+                            <Button color={"teal"} onClick={handleSignOut}><Icon name="sign-out"/>Sign Out</Button>
                         </>
                     }
                 </Menu.Item>

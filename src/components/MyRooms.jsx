@@ -1,11 +1,12 @@
-import {Button, Card, List, ListContent, ListDescription, ListHeader, ListItem} from "semantic-ui-react";
+import {Button, Card, Input, List, ListContent, ListDescription, ListHeader, ListItem} from "semantic-ui-react";
 import Navbar from "./Navbar.jsx";
 import {useEffect, useState} from "react";
 import {httpRequest} from "../api.js";
 import {useNavigate} from "react-router-dom";
 import {toast} from "sonner";
+import {Socket} from "socket.io-client";
 
-export default function MyRooms(){
+export default function MyRooms({socket=Socket}){
     const navigate = useNavigate();
     const [rooms,setRooms] = useState([]);
     useEffect(() => {
@@ -34,9 +35,7 @@ export default function MyRooms(){
                         for(let i = 0;i < rooms.length;i++){
                             if(i !== elem.value)temp.push(prevState[i]);
                         }
-
-
-                          return temp;
+                        return temp;
                     })
                 }else{
                     toast.message("Failed To Delete")
@@ -47,6 +46,11 @@ export default function MyRooms(){
         )
     }
     let list = [];
+    function handleOnClick(roomId){
+        socket.emit("reopenConnection",{roomId:roomId,userName:localStorage.getItem("userName")},()=>{
+            navigate(`/editor/${roomId}`,{state:{admin:true}});
+        });
+    }
     for(let i = 0;i < rooms.length;i++){
         const date =  new Date(rooms[i]["date"]);
         const lastUpdated =  date.toLocaleDateString() + "  " + date.toLocaleTimeString();
@@ -55,10 +59,12 @@ export default function MyRooms(){
                 <ListContent floated={"right"}>
                     <Button circular icon={"trash alternate"} color={"red"} value={i} onClick={handleDelete}/>
                 </ListContent>
-                <ListContent style={{marginTop:"16px"}}>
-                    <ListHeader>{rooms[i]["name"]}</ListHeader>
-                    <ListDescription>Last Updated: {lastUpdated}</ListDescription>
-                </ListContent>
+                <div  onClick={()=>handleOnClick(rooms[i]["_id"])}>
+                    <ListContent style={{marginTop:"16px"}} >
+                        <ListHeader>{rooms[i]["name"]}</ListHeader>
+                        <ListDescription>Last Updated: {lastUpdated}</ListDescription>
+                    </ListContent>
+                </div>
             </ListItem>
         )
     }

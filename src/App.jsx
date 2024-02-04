@@ -8,6 +8,7 @@ import SignUpPage from "./pages/SignUpPage.jsx";
 import {toast, Toaster} from "sonner";
 import {io} from "socket.io-client";
 import MyRooms from "./components/MyRooms.jsx";
+import Streams from "./components/Streams.jsx";
 
 
 const socket = io("http://192.168.29.44:3155");
@@ -34,7 +35,7 @@ const routes = createBrowserRouter([
     },
     {
         path:"/myRooms",
-        element:<MyRooms/>
+        element:<MyRooms socket={socket}/>
     }
 ])
 const App = () => {

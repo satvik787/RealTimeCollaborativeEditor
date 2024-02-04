@@ -1,6 +1,6 @@
 import EditorWindow from "./EditorWindow.jsx";
 import {loader} from "@monaco-editor/react";
-import {useEffect, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import { toast } from "sonner";
 import axios from 'axios';
 import nightOwl from "monaco-themes/themes/Night Owl.json";
@@ -18,9 +18,12 @@ import {
 } from "semantic-ui-react";
 import UsersList from "./UsersList.jsx";
 import NavbarEditor from "./NavbarEditor.jsx";
-import {redirect, useLocation, useNavigate} from "react-router-dom";
+import {useLocation, useNavigate} from "react-router-dom";
 import RequestCard from "./RequestCard.jsx";
 import {Socket} from "socket.io-client";
+import {httpRequest} from "../api.js";
+import Streams from "./Streams.jsx";
+import VideoStream from "../videoStream.js";
 const SUBMISSION_TOKEN = "submission_token";
 const USER_LANG_PREF = "user_lang";
 const USER_THEME_PREF = "user_theme";
@@ -144,22 +147,21 @@ export default function Room({socket=Socket}){
     const [joinReq,setJoinReq] = useState(new Set());
     const [outputVisable,setOutputVisable] = useState(false);
     const [users,setUsers] = useState([]);
+    const [video,setVideo] = useState(false);
+    const roomName = useRef("");
+    const videoStream = useRef(null);
+    const [initDone,setInitDone] = useState(false);
     const {state} = useLocation();
     const navigate = useNavigate();
 
-    useEffect(() => {
-        socketHandler();
-    }, [socket]);
+
+
+
 
     useEffect(() => {
         if(state === null)navigate("/");
-        // eslint-disable-next-line no-prototype-builtins
-        if(localStorage.hasOwnProperty(lang.name)){
-            setCode(localStorage.getItem(lang.name));
-        }else {
-            setCode("");
-        }
-    }, [lang]);
+        socketHandler();
+    }, [socket]);
     
     useEffect(() => {
         // eslint-disable-next-line no-prototype-builtins
@@ -176,15 +178,26 @@ export default function Room({socket=Socket}){
     function socketHandler(){
 
         socket.removeAllListeners();
+        socket.emit("getRoomName",{"roomId":localStorage.getItem("roomId")});
         socket.emit("getSourceCode",localStorage.getItem("roomId"));
         socket.emit("getUsers",localStorage.getItem("roomId"));
         socket.on("joinReq",(data)=>{
             setJoinReq(prevState => new Set([...prevState,data.userName]));
         });
+        socket.on("roomNameRes",(data)=>{
+            roomName.current = data.roomName;
+        })
         socket.on("sourceCodeRes",({sourceCode})=>{
             setCode(sourceCode);
         });
         socket.on("usersRes",(users)=>{
+            if(videoStream.current === null){
+                const arr = users.users.filter((val)=>val.userName !== localStorage.getItem("userName")).map((val)=>val.userName);
+                videoStream.current = new VideoStream(socket,arr);
+                videoStream.current.init().then(()=>{
+                    setInitDone(true);
+                });
+            }
             setUsers([...users.users]);
         });
         socket.on("userJoined",(data)=>{
@@ -201,6 +214,7 @@ export default function Room({socket=Socket}){
         socket.on("userLeft",(data)=>{
             if(data.roomId === localStorage.getItem("roomId") && localStorage.getItem("allowed")) {
                 socket.emit("getUsers", localStorage.getItem("roomId"));
+                videoStream.current.removeConnection(data.userName);
                 toast.message(`${data.userName} Left`);
             }
         });
@@ -311,7 +325,7 @@ export default function Room({socket=Socket}){
         editor.onKeyUp((e)=>{
             const pos = editor.getPosition();
             let str = e.browserEvent.key;
-            const obj = {cursorPos:pos,text:str};
+            const obj = {cursorPos:pos,text:str,source:editor.getValue()};
             if(str.length > 1 || e.keyCode === monaco.KeyCode.Space){
                 if(e.keyCode === monaco.KeyCode.Space || e.keyCode === monaco.KeyCode.Enter || e.keyCode === monaco.KeyCode.Tab || e.keyCode === monaco.KeyCode.Backspace) {
                     obj.spec = true;
@@ -417,60 +431,102 @@ export default function Room({socket=Socket}){
             });
     }
     function handleLeave(){
-        socket.emit("leaveRoom",{roomId:localStorage.getItem("roomId"),userName:localStorage.getItem("userName")})
-        navigate("/");
+        setLoading(true);
+        const data = {"userName":localStorage.getItem("userName"),"roomId":localStorage.getItem("roomId"),"name":roomName.current,"source":code};
+        if(state.admin){
+            httpRequest(import.meta.env.VITE_APP_API_ROOM,"POST",data)
+                .then((data)=>{
+                    // eslint-disable-next-line no-prototype-builtins
+                    if(data.hasOwnProperty("err")){
+                        toast.error(data.err);
+                    }
+                })
+                .catch((err)=>{
+                    toast.error(`room insert failed ${err}`);
+                }).finally(()=>{
+                    setLoading(false);
+                    socket.emit("leaveRoom",{roomId:localStorage.getItem("roomId"),userName:localStorage.getItem("userName")})
+                    navigate("/");
+                }
+            )
+        }else{
+            socket.emit("leaveRoom",{roomId:localStorage.getItem("roomId"),userName:localStorage.getItem("userName")})
+            navigate("/");
+        }
+
     }
     function handleInputChange(data){
         setStdInput(data.target.value);
+
         socket.emit("stdInput",{roomId:localStorage.getItem("roomId"),input:data.target.value});
+    }
+    function changeToVideo(){
+        if(!initDone){
+            setVideo(false);
+        }else{
+            setVideo((prevState)=>!prevState);
+        }
     }
     return (
         <>
             <NavbarEditor onLeave={handleLeave} />
             <Grid relaxed stackable style={{margin:"0 0 0 0"}}>
-                <GridColumn width={4} style={{paddingRight:"0px",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
-                    <GridRow>
-                        <Segment style={{overflow:"auto",minHeight:"300px",maxHeight:"300px",marginBottom:"16px"}}>
-                            <TransitionGroup animation={"fade"} duration={500}>
-                                {   joinReq.size > 0 &&
-                                    <RequestCard requests={joinReq} handler={requestHandler}/>
+                {
+                    video &&
+                    <GridColumn width={4} style={{paddingRight:"0px",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
+                        <GridRow>
+                            <Segment style={{overflow:"auto",minHeight:"86vh",maxHeight:"300px",marginBottom:"16px"}}>
+                                <Streams streams={videoStream.current.streams} handler={changeToVideo}/>
+                            </Segment>
+                        </GridRow>
+                    </GridColumn>
+                }
+                {
+                    !video &&
+                    <GridColumn width={4} style={{paddingRight:"0px",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
+                        <GridRow>
+                            <Segment style={{overflow:"auto",minHeight:"300px",maxHeight:"300px",marginBottom:"16px"}}>
+                                <TransitionGroup animation={"fade"} duration={500}>
+                                    {   joinReq.size > 0 &&
+                                        <RequestCard req={joinReq} handler={requestHandler}/>
+                                    }
+                                </TransitionGroup>
+                                <UsersList user={users} admin={false} handler={changeToVideo}/>
+                            </Segment>
+                        </GridRow>
+                        <GridRow>
+                            <Header as={"h4"}>
+                            <span onClick={handleInputVisibility}>
+                                <HeaderContent style={{color:"white"}}>
+                                    Input:<Icon name={"dropdown"}  />
+                                </HeaderContent>
+                            </span>
+                            </Header>
+                            <TransitionGroup animation={"fade down"} duration={500}>
+                                {
+                                    inputVisable &&
+                                    <textarea style={{padding:"8px",marginBottom:"2px",width:"100%",resize:"none",minHeight:"100px"}} onChange={handleInputChange} value={stdInput}/>
                                 }
                             </TransitionGroup>
-                            <UsersList user={users} admin={false}/>
-                        </Segment>
-                    </GridRow>
-                    <GridRow>
-                        <Header as={"h4"}>
-                    <span onClick={handleInputVisibility}>
-                        <HeaderContent style={{color:"white"}}>
-                        Input:
-                        <Icon name={"dropdown"}  />
-                    </HeaderContent>
-                    </span>
-                        </Header>
-                        <TransitionGroup animation={"fade down"} duration={500}>
-                            {
-                                inputVisable &&
-                                <textarea style={{padding:"8px",marginBottom:"2px",width:"100%",resize:"none",minHeight:"100px"}} onChange={handleInputChange} value={stdInput}/>
-                            }
-                        </TransitionGroup>
-                        <Header as={"h4"}>
+                            <Header as={"h4"}>
                     <span onClick={handleOutputVisbility}>
                         <HeaderContent style={{color:"white"}}>
                         Output:
                         <Icon name={"dropdown"} />
                     </HeaderContent>
                     </span>
-                        </Header>
-                        <TransitionGroup animation={"fade down"} duration={500}>
-                            {
-                                (outputVisable) &&
-                                <textarea readOnly={true} style={{padding:"8px",marginBottom:"8px",resize:"none",minHeight:"90px",width:"100%",color:output.err ? "red":"black"}} value={output.output}/>
-                            }
-                        </TransitionGroup>
-                        <Button  style={{display:"position"}} color={"teal"} fluid loading={loading} onClick={executeCode} disabled={loading} >Run</Button>
-                    </GridRow>
-                </GridColumn>
+                            </Header>
+                            <TransitionGroup animation={"fade down"} duration={500}>
+                                {
+                                    (outputVisable) &&
+                                    <textarea readOnly={true} style={{padding:"8px",marginBottom:"8px",resize:"none",minHeight:"90px",width:"100%",color:output.err ? "red":"black"}} value={output.output}/>
+                                }
+                            </TransitionGroup>
+                            <Button  style={{display:"position"}} color={"teal"} fluid loading={loading} onClick={executeCode} disabled={loading} >Run</Button>
+                        </GridRow>
+                    </GridColumn>
+                }
+
                 <GridColumn width={12}>
                     <div style={{marginBottom:"16px",display:"flex",justifyContent:"space-evenly"}}>
                         <Dropdown onChange={(e,data)=> onLanguageChange(data.value)} value={initInd(USER_LANG_PREF)} style={{marginRight:"8px"}} fluid selection options={programmingOptions} />

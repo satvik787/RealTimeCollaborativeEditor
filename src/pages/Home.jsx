@@ -5,16 +5,19 @@ import { useNavigate } from "react-router-dom";
 import {Button, Confirm, Loader} from "semantic-ui-react";
 import Navbar from "../components/Navbar.jsx";
 import Logo from "../components/Logo.jsx";
+import {Socket} from "socket.io-client";
+import {scryRenderedComponentsWithType} from "react-dom/test-utils";
 
 
-const Home = ({socket}) => {
+const Home = ({socket=Socket}) => {
   const navigate = useNavigate();
   const [roomId, setRoomId] = useState("");
   const [loading,setLoading] = useState(false);
   const [inRoom,setInRoom] = useState({content:"",open:false});
-
+  const [roomName,setRoomName] = useState("");
     useEffect(() => {
         localStorage.setItem("allowed",false);
+        // localStorage.removeItem("admin");
         // localStorage.removeItem("roomId");
         setLoading(true);
         handleSocket();
@@ -24,6 +27,13 @@ const Home = ({socket}) => {
         socket.removeAllListeners();
         socket.emit("checkUser",{"uuid":uuidv4(),userName:localStorage.getItem("userName")});
 
+
+        socket.on("roomNameRes",(data)=>{
+            // eslint-disable-next-line no-prototype-builtins
+            if(data.hasOwnProperty("roomName")){
+                setRoomName(data.roomName);
+            }
+        });
         socket.on("err",(data)=>{
             toast.error(data.msg);
         })
@@ -38,15 +48,16 @@ const Home = ({socket}) => {
             // eslint-disable-next-line no-prototype-builtins
             if(data.hasOwnProperty("newR")){
                 localStorage.setItem("allowed",true);
+                // localStorage.setItem("admin",true);
                 navigate(`/editor/${data.roomId}`,{
                     state:{admin:true}
-
                 });
             }else{
                 if(data["roomId"] === localStorage.getItem("roomId") && data["userName"] === localStorage.getItem("userName")) {
                     if (data["allowed"]) {
                         if (data.userName === localStorage.getItem("userName")) {
                             localStorage.setItem("allowed",true);
+                            // localStorage.setItem("admin",false);
                             navigate(`/editor/${data.roomId}`, {
                                 state: {admin:false}
                             });
@@ -65,11 +76,15 @@ const Home = ({socket}) => {
             navigate("/login");
             return;
         }
+        if(roomName.length === 0){
+            toast.error("Please Provide a room Name");
+            return;
+        }
         const newId = uuidv4();
         setRoomId(newId);
         localStorage.setItem("roomId",newId);
         setLoading(true);
-        socket.emit("connectRoom",{roomId:newId,type:"new",userName:localStorage.getItem("userName")})
+        socket.emit("connectRoom",{roomId:newId,type:"new",roomName:roomName,userName:localStorage.getItem("userName")})
     };
   const joinRoom = () => {
       // eslint-disable-next-line no-prototype-builtins
@@ -108,16 +123,27 @@ const Home = ({socket}) => {
                   <div className="inputGroup">
                       <input
                           type="text"
+                          className="inputBox username"
+                          placeholder="ROOM NAME"
+                          value={roomName}
+                          onChange={(e)=>{
+                                setRoomName(e.target.value)
+                          }}
+                      />
+                      <input
+                          type="text"
                           disabled={loading}
                           className="inputBox roomId"
                           placeholder="ROOM ID"
                           onChange={(e) => {
                               localStorage.setItem("roomId",e.target.value);
+                              socket.emit("getRoomName",{roomId:e.target.value})
                               setRoomId(e.target.value);
                           }}
                           value={roomId}
                           onKeyUp={handleEnterKey}
                       />
+
                       <Button disabled={loading} inverted type="submit" className="btn joinBtn" onClick={joinRoom}>
                           JOIN
                       </Button>
