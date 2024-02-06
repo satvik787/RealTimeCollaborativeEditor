@@ -1,5 +1,4 @@
 import {Socket} from "socket.io-client";
-import Video from "./components/Video.jsx";
 
 export default class VideoStream {
 
@@ -14,11 +13,12 @@ export default class VideoStream {
         this.userList = userList;
         this.connections = new Map();
         this.socket = socket;
-        this.streams = [];
+        this.streams = new Map();
         this.localStream = new MediaStream();
     }
 
     async init(){
+
         this.socket.off("io:candidate");
         this.socket.off("io:answer");
         this.socket.off("io:offer");
@@ -57,7 +57,7 @@ export default class VideoStream {
                 remoteStream.addTrack(track);
             });
         }
-        this.streams.push([remoteStream,peerUserName]);
+        this.streams.set(peerUserName,remoteStream);
         connection.onicecandidate = async (event) => {
             if(event.candidate){
                 console.log("ICE GEN");

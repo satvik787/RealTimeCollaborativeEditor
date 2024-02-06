@@ -1,13 +1,13 @@
 import Video from "./Video.jsx";
 import {Button, Divider, List, ListHeader} from "semantic-ui-react";
 
-export default function Streams({streams=[],handler}){
+export default function Streams({streams=Map,handler}){
     const items = [];
-    for(let i = 0;i < streams.length;i++){
-        console.log("STREAM ",streams[i]);
-        if(streams[i][0].active) {
+    for(let i of streams.keys()){
+        console.log("STREAM ",i," ",streams.get(i));
+        if(streams.get(i).active) {
             items.push(
-                <Video stream={streams[i]}></Video>
+                <Video userName={i} stream={streams.get(i)}></Video>
             )
         }
     }

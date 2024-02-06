@@ -48,6 +48,8 @@ export default function MyRooms({socket=Socket}){
     let list = [];
     function handleOnClick(roomId){
         socket.emit("reopenConnection",{roomId:roomId,userName:localStorage.getItem("userName")},()=>{
+            localStorage.setItem("roomId",roomId);
+            localStorage.setItem("allowed",true);
             navigate(`/editor/${roomId}`,{state:{admin:true}});
         });
     }

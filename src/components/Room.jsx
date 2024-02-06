@@ -176,7 +176,6 @@ export default function Room({socket=Socket}){
     }, []);
 
     function socketHandler(){
-
         socket.removeAllListeners();
         socket.emit("getRoomName",{"roomId":localStorage.getItem("roomId")});
         socket.emit("getSourceCode",localStorage.getItem("roomId"));
@@ -476,7 +475,7 @@ export default function Room({socket=Socket}){
                     <GridColumn width={4} style={{paddingRight:"0px",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
                         <GridRow>
                             <Segment style={{overflow:"auto",minHeight:"86vh",maxHeight:"300px",marginBottom:"16px"}}>
-                                <Streams streams={videoStream.current.streams} handler={changeToVideo}/>
+                                <Streams  streams={videoStream.current.streams} handler={changeToVideo}/>
                             </Segment>
                         </GridRow>
                     </GridColumn>
