@@ -10,7 +10,7 @@ import {io} from "socket.io-client";
 import MyRooms from "./components/MyRooms.jsx";
 
 
-const socket = io("http://13.234.35.201/");
+const socket = io("localhost:8000");
 socket.on("connect",()=>{
     toast.success("Connected to server");
 })

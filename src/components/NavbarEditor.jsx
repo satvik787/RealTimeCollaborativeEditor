@@ -8,7 +8,7 @@ export default function NavbarEditor({onLeave,roomId}){
         <Menu  style={{margin:"0 0 0 0"}}>
             <Container >
                 <Menu.Item as='a' header onClick={onLeave}>
-                    <Image size='mini' src='http://13.234.35.201/logo.png' style={{ marginRight: '1.5em' }} />
+                    <Image size='mini' src='localhost:8000/logo.png' style={{ marginRight: '1.5em' }} />
                     Code Along
                 </Menu.Item>
                 <Menu.Item position={"right"} >

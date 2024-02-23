@@ -60,7 +60,7 @@ export default function LoginPage(){
             <Grid textAlign='center' style={{ height: '80vh' }} verticalAlign='middle'>
                 <Grid.Column style={{ maxWidth: 450 }}>
                     <Header as='h2' color='teal' textAlign='center'>
-                        <Image src='http://13.234.35.201/logo.png' /> Log-in to your account
+                        <Image src='localhost:8000/logo.png' /> Log-in to your account
                     </Header>
                     <Form size='large' loading={loading}>
                         <Segment stacked>
