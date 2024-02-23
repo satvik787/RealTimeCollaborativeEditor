@@ -3,11 +3,25 @@ import {Socket} from "socket.io-client";
 export default class VideoStream {
 
     static server = {
-        iceServers:[
+        iceServers: [
+
             {
-                urls:['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302']
-            }
-        ]
+                urls: [
+                    "stun:stun1.l.google.com:19302",
+                    "stun:stun2.l.google.com:19302",
+                    "stun:stun.l.google.com:19302",
+                    "stun:stun3.l.google.com:19302",
+                    "stun:stun4.l.google.com:19302",
+                    "stun:stun.services.mozilla.com",
+                ],
+            },
+            {
+                urls: "turn:in.relay.metered.ca:80",
+                username: "0d4dabb868b66c7a0008f452",
+                credential: "pCpQC3G1L5xouPbF",
+            },
+        ],
+        iceCandidatePoolSize: 10,
     }
     constructor(socket= new Socket(),userList=[]) {
         this.userList = userList;
@@ -45,11 +59,6 @@ export default class VideoStream {
     async newConnection(peerUserName){
 
         const connection = new RTCPeerConnection(VideoStream.server);
-        this.connections.set(peerUserName,connection);
-        this.localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-        this.localStream.getTracks().forEach((track)=>{
-            connection.addTrack(track,this.localStream);
-        });
         const remoteStream = new MediaStream();
         connection.ontrack = (event)=>{
             console.log("GOT TRACK");
@@ -60,8 +69,10 @@ export default class VideoStream {
         this.streams.set(peerUserName,remoteStream);
         connection.onicecandidate = async (event) => {
             if(event.candidate){
-                console.log("ICE GEN");
-                this.socket.emit("stream:candidate",{candidate:event.candidate,peerUserName:peerUserName,userName:localStorage.getItem("userName")});
+                setTimeout(()=>{
+                    console.log("ICE GEN");
+                    this.socket.emit("stream:candidate",{candidate:event.candidate,peerUserName:peerUserName,userName:localStorage.getItem("userName")});
+                },800);
             }
         }
         return connection;
@@ -73,6 +84,11 @@ export default class VideoStream {
             offerToReceiveVideo: true
         }
         const connection = await this.newConnection(peerUserName);
+        this.connections.set(peerUserName,connection);
+        this.localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+        this.localStream.getTracks().forEach((track)=>{
+            connection.addTrack(track,this.localStream);
+        });
         console.log("in OFFER",this.connections," peerUSERNAME ",peerUserName);
         const offer = await connection.createOffer(configuration);
         await connection.setLocalDescription(offer);
@@ -82,8 +98,13 @@ export default class VideoStream {
     async createAnswer(peerUserName,offer){
         console.log("in Answer before",this.connections," peerUSERNAME ",peerUserName);
         const connection = await this.newConnection(peerUserName);
-        console.log("in Answer after",this.connections," peerUSERNAME ",peerUserName);
         await connection.setRemoteDescription(offer);
+        this.localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+        this.localStream.getTracks().forEach((track)=>{
+            connection.addTrack(track,this.localStream);
+        });
+        this.connections.set(peerUserName,connection);
+        console.log("in Answer after",this.connections," peerUSERNAME ",peerUserName);
         const answer = await connection.createAnswer();
         await connection.setLocalDescription(answer);
         this.socket.emit("stream:answer",{answer:answer,peerUserName:peerUserName,userName:localStorage.getItem("userName")});

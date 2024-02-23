@@ -10,7 +10,7 @@ export default function Video({userName,stream}){
     }, [localVideo, stream]);
 
     return (
-        <Card>
+        <Card key={userName}>
             <video ref={localVideo} autoPlay />
             <CardDescription style={{paddingLeft:"8px"}}>
                 {userName}

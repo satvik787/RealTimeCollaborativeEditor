@@ -297,7 +297,6 @@ export default function Room({socket=Socket}){
             tooltipClassName:"my_cursor"
         });
         socket.on("update",({roomId,userName,data})=>{
-            const cursor = remoteCursorManager.addCursor(userName, "black",userName);
             if(roomId !== localStorage.getItem("roomId") || userName === localStorage.getItem("userName"))return
             // eslint-disable-next-line no-prototype-builtins
             if(!data.hasOwnProperty("cursorPos") || !data.hasOwnProperty("text"))return;
@@ -318,15 +317,17 @@ export default function Room({socket=Socket}){
                         forceMoveMarkers: true,
                     }
                 ])
+                const cursor = remoteCursorManager.addCursor(userName, "black",userName);
+                cursor.setPosition(new monaco.Position(data.cursorPos.lineNumber,data.cursorPos.column));
+                setTimeout(()=>cursor.dispose(),500);
             }
-            cursor.setPosition(new monaco.Position(data.cursorPos.lineNumber,data.cursorPos.column));
         })
         editor.onKeyUp((e)=>{
             const pos = editor.getPosition();
             let str = e.browserEvent.key;
             const obj = {cursorPos:pos,text:str,source:editor.getValue()};
             if(str.length > 1 || e.keyCode === monaco.KeyCode.Space){
-                if(e.keyCode === monaco.KeyCode.Space || e.keyCode === monaco.KeyCode.Enter || e.keyCode === monaco.KeyCode.Tab || e.keyCode === monaco.KeyCode.Backspace) {
+                if(e.keyCode === monaco.KeyCode.Space  || e.keyCode === monaco.KeyCode.Enter || e.keyCode === monaco.KeyCode.Tab || e.keyCode === monaco.KeyCode.Backspace) {
                     obj.spec = true;
                     obj.text = editor.getValue();
                 }else if(e.keyCode === monaco.KeyCode.UpArrow || e.keyCode === monaco.KeyCode.LeftArrow || e.keyCode === monaco.KeyCode.DownArrow || e.keyCode === monaco.KeyCode.RightArrow){

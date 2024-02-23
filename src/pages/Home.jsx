@@ -35,6 +35,7 @@ const Home = ({socket=Socket}) => {
             }
         });
         socket.on("err",(data)=>{
+            setLoading(false);
             toast.error(data.msg);
         })
         socket.on("checkRes",(data)=>{

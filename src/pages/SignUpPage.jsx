@@ -68,7 +68,7 @@ export default function SignUpPage(){
             <Grid textAlign='center' style={{ height: '80vh' }} verticalAlign='middle'>
                 <Grid.Column style={{ maxWidth: 450 }}>
                     <Header as='h2' color='teal' textAlign='center'>
-                        <Image src='http://3.111.150.230/logo.png' /> Sign-Up
+                        <Image src='http://13.234.35.201/logo.png' /> Sign-Up
                     </Header>
                     <Form size='large' loading={loading}>
                         <Segment stacked>
